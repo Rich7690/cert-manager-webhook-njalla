@@ -9,7 +9,6 @@ import (
 
 	"github.com/balzanelli/cert-manager-webhook-njalla/internal/njalla"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
-	"github.com/jpillora/go-tld"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -132,15 +131,15 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest) (string, string, error) {
 	// Both ch.ResolvedZone and ch.ResolvedFQDN end with a dot: '.'
-	// hack for my domains who don't give proper soa records
-	parsed, err := tld.Parse(strings.TrimSuffix(ch.ResolvedFQDN, "."))
-	if err != nil {
-		return "", "", err
-	}
-	entry := strings.TrimSuffix(ch.ResolvedFQDN, parsed.Domain)
+
+	// hack for my domains who don't give proper soa records due to custom DNS servers
+	split := strings.Split(strings.TrimSuffix(ch.ResolvedFQDN, "."), ".")
+	domain := strings.Join(split[len(split)-2:], ".")
+
+	entry := strings.TrimSuffix(ch.ResolvedFQDN, domain)
 	entry = strings.TrimSuffix(entry, ".")
 	//domain := strings.TrimSuffix(ch.ResolvedZone, ".")
-	return entry, parsed.Domain, nil
+	return entry, domain, nil
 }
 
 // CleanUp should delete the relevant TXT record from the DNS provider console.
