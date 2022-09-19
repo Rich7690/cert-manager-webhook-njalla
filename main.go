@@ -97,29 +97,23 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	klog.Info("Challenge: ", ch.ResolvedFQDN, " resolved zone: ", ch.ResolvedZone)
 
-	name, domain, err := c.getDomainAndEntry(ch)
-	if err != nil {
-		return err
-	}
+	name, domain := c.getDomainAndEntry(ch)
 
 	klog.Info("Getting TXT Record. Name: ", name, " Domain: ", domain)
-	record, err := client.GetRecord(name, "TXT", domain)
+	record, err := client.GetRecordWithKey(name, "TXT", domain, ch.Key)
 	if err != nil {
 		return fmt.Errorf("unable to check TXT record: %v", err)
 	}
 
 	if record != nil {
-		klog.Info("Editing Record")
-		if err = client.EditRecord(record.ID, domain, ch.Key); err != nil {
-			return fmt.Errorf("unable to change TXT record: %v", err)
-		}
+		klog.Info("Found existing record with id: ", record.ID)
 	} else {
 		klog.Info("Adding Record")
 		if _, err = client.AddRecord(njalla.Record{
 			Name:    name,
 			Domain:  domain,
 			Content: ch.Key,
-			TTL:     300,
+			TTL:     120,
 			Type:    "TXT",
 		}); err != nil {
 			return fmt.Errorf("unable to create TXT record: %v", err)
@@ -129,17 +123,18 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 	return nil
 }
 
-func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest) (string, string, error) {
+// This should return a tuple of (_acme-challenge, example.com)
+func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest) (string, string) {
 	// Both ch.ResolvedZone and ch.ResolvedFQDN end with a dot: '.'
 
 	// hack for my domains who don't give proper soa records due to custom DNS servers
+	// it should look something like _acme-challenge.example.com. so we just remove the . at the end and grab the last two pices of the slice (example.com)
 	split := strings.Split(strings.TrimSuffix(ch.ResolvedFQDN, "."), ".")
-	domain := strings.Join(split[len(split)-2:], ".")
+	domain := strings.Join(split[len(split)-2:], ".") // this returns example.com
 
-	entry := strings.TrimSuffix(ch.ResolvedFQDN, domain)
-	entry = strings.TrimSuffix(entry, ".")
-	//domain := strings.TrimSuffix(ch.ResolvedZone, ".")
-	return entry, domain, nil
+	entry := strings.TrimSuffix(ch.ResolvedFQDN, ".")
+	entry = strings.TrimSuffix(entry, domain)
+	return entry, domain
 }
 
 // CleanUp should delete the relevant TXT record from the DNS provider console.
@@ -162,10 +157,7 @@ func (c *njallaDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 	client := njalla.NewClient(string(token))
 
-	name, domain, err := c.getDomainAndEntry(ch)
-	if err != nil {
-		return err
-	}
+	name, domain := c.getDomainAndEntry(ch)
 
 	klog.Info("Getting TXT Record. Name: ", name, " Domain: ", domain)
 	record, err := client.GetRecordWithKey(name, "TXT", domain, ch.Key)

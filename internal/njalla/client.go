@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
-	"k8s.io/klog/v2"
 )
 
 const apiEndpoint = "https://njal.la/api/1/"
@@ -135,7 +133,8 @@ func (c *Client) GetRecordWithKey(name string, recordType string, domain string,
 			if record.Name == name && record.Content == key {
 				return &record, nil
 			} else {
-				klog.Info("Found record. Name: ", record.Name, " Content: ", record.Content, " Key: ", key)
+				// uncomment if this is still bugged
+				//klog.Info("Found record. Name: ", record.Name, " Content: ", record.Content, " Key: ", key)
 			}
 		}
 	}
