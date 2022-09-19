@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -25,9 +24,6 @@ import (
 var GroupName = os.Getenv("GROUP_NAME")
 
 func main() {
-	klog.InitFlags(nil)
-	flag.Parse()
-
 	if GroupName == "" {
 		panic("GROUP_NAME must be specified")
 	}
