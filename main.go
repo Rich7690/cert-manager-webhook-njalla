@@ -18,6 +18,8 @@ import (
 
 	"github.com/jetstack/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
 	"github.com/jetstack/cert-manager/pkg/acme/webhook/cmd"
+
+	tld "github.com/jpillora/go-tld"
 )
 
 // GroupName is the K8s API group
@@ -95,9 +97,15 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	client := njalla.NewClient(string(token))
 
-	klog.Info("Challenge: ", ch.ResolvedFQDN, " resolved zone: ", ch.ResolvedZone)
+	// hack for my domains who don't give proper soa records
+	parsed, err := tld.Parse(strings.TrimSuffix(ch.ResolvedFQDN, "."))
+	if err != nil {
+		return err
+	}
 
-	name, domain := c.getDomainAndEntry(ch)
+	klog.Info("Challenge: ", ch.ResolvedFQDN, " resolved zone: ", ch.ResolvedZone, " parsed domain: ", parsed.Domain)
+
+	name, domain := c.getDomainAndEntry(ch, parsed.Domain)
 
 	klog.Info("Getting TXT Record. Name: ", name, " Domain: ", domain)
 	record, err := client.GetRecord(name, "TXT", domain)
@@ -126,12 +134,12 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 	return nil
 }
 
-func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest) (string, string) {
+func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest, dom string) (string, string) {
 	// Both ch.ResolvedZone and ch.ResolvedFQDN end with a dot: '.'
-	entry := strings.TrimSuffix(ch.ResolvedFQDN, ch.ResolvedZone)
+	entry := strings.TrimSuffix(ch.ResolvedFQDN, dom)
 	entry = strings.TrimSuffix(entry, ".")
-	domain := strings.TrimSuffix(ch.ResolvedZone, ".")
-	return entry, domain
+	//domain := strings.TrimSuffix(ch.ResolvedZone, ".")
+	return entry, dom
 }
 
 // CleanUp should delete the relevant TXT record from the DNS provider console.
