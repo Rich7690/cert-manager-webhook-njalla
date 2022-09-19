@@ -19,10 +19,15 @@ type APIResponse struct {
 	Result json.RawMessage `json:"result,omitempty"`
 }
 
+type NestedError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 // APIError is an API error.
 type APIError struct {
-	Code    int
-	Message string
+	Code    int          `json:"code"`
+	Message *NestedError `json:"message"`
 }
 
 func (a APIError) Error() string {

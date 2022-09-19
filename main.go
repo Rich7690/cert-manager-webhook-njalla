@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/balzanelli/cert-manager-webhook-njalla/internal/njalla"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes"
-	"os"
-	"strings"
+	"k8s.io/klog/v2"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
@@ -22,6 +25,9 @@ import (
 var GroupName = os.Getenv("GROUP_NAME")
 
 func main() {
+	klog.InitFlags(nil)
+	flag.Parse()
+
 	if GroupName == "" {
 		panic("GROUP_NAME must be specified")
 	}
@@ -80,11 +86,12 @@ func (c *njallaDNSProviderSolver) Name() string {
 // cert-manager itself will later perform a self check to ensure that the
 // solver has correctly configured the DNS provider.
 func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
+	klog.V(5).Info("loading config")
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
 	}
-
+	klog.V(5).Info("getting secret")
 	token, err := c.getSecret(cfg.APIKeySecretRef, ch.ResourceNamespace)
 	if err != nil {
 		return fmt.Errorf("unable to get Njalla API token: %v", err)
@@ -94,16 +101,19 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	name, domain := c.getDomainAndEntry(ch)
 
+	klog.V(5).Info("Getting TXT Record. Name: ", name, " Domain: ", domain)
 	record, err := client.GetRecord(name, "TXT", domain)
 	if err != nil {
 		return fmt.Errorf("unable to check TXT record: %v", err)
 	}
 
 	if record != nil {
+		klog.V(5).Info("Editing Record")
 		if err = client.EditRecord(record.ID, domain, ch.Key); err != nil {
 			return fmt.Errorf("unable to change TXT record: %v", err)
 		}
 	} else {
+		klog.V(5).Info("Adding Record")
 		if _, err = client.AddRecord(njalla.Record{
 			Name:    name,
 			Domain:  domain,
