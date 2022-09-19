@@ -167,6 +167,7 @@ func (c *njallaDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 
+	klog.Info("Getting TXT Record. Name: ", name, " Domain: ", domain)
 	record, err := client.GetRecordWithKey(name, "TXT", domain, ch.Key)
 	if err != nil {
 		return fmt.Errorf("unable to check TXT record: %v", err)
