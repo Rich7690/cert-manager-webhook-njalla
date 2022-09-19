@@ -9,6 +9,7 @@ import (
 
 	"github.com/balzanelli/cert-manager-webhook-njalla/internal/njalla"
 	cmmeta "github.com/jetstack/cert-manager/pkg/apis/meta/v1"
+	"github.com/jpillora/go-tld"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
@@ -18,8 +19,6 @@ import (
 
 	"github.com/jetstack/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
 	"github.com/jetstack/cert-manager/pkg/acme/webhook/cmd"
-
-	tld "github.com/jpillora/go-tld"
 )
 
 // GroupName is the K8s API group
@@ -97,15 +96,12 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	client := njalla.NewClient(string(token))
 
-	// hack for my domains who don't give proper soa records
-	parsed, err := tld.Parse(strings.TrimSuffix(ch.ResolvedFQDN, "."))
+	klog.Info("Challenge: ", ch.ResolvedFQDN, " resolved zone: ", ch.ResolvedZone)
+
+	name, domain, err := c.getDomainAndEntry(ch)
 	if err != nil {
 		return err
 	}
-
-	klog.Info("Challenge: ", ch.ResolvedFQDN, " resolved zone: ", ch.ResolvedZone, " parsed domain: ", parsed.Domain)
-
-	name, domain := c.getDomainAndEntry(ch, parsed.Domain)
 
 	klog.Info("Getting TXT Record. Name: ", name, " Domain: ", domain)
 	record, err := client.GetRecord(name, "TXT", domain)
@@ -134,12 +130,17 @@ func (c *njallaDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 	return nil
 }
 
-func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest, dom string) (string, string) {
+func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest) (string, string, error) {
 	// Both ch.ResolvedZone and ch.ResolvedFQDN end with a dot: '.'
-	entry := strings.TrimSuffix(ch.ResolvedFQDN, dom)
+	// hack for my domains who don't give proper soa records
+	parsed, err := tld.Parse(strings.TrimSuffix(ch.ResolvedFQDN, "."))
+	if err != nil {
+		return "", "", err
+	}
+	entry := strings.TrimSuffix(ch.ResolvedFQDN, parsed.Domain)
 	entry = strings.TrimSuffix(entry, ".")
 	//domain := strings.TrimSuffix(ch.ResolvedZone, ".")
-	return entry, dom
+	return entry, parsed.Domain, nil
 }
 
 // CleanUp should delete the relevant TXT record from the DNS provider console.
@@ -161,7 +162,10 @@ func (c *njallaDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 	client := njalla.NewClient(string(token))
 
-	name, domain := c.getDomainAndEntry(ch)
+	name, domain, err := c.getDomainAndEntry(ch)
+	if err != nil {
+		return err
+	}
 
 	record, err := client.GetRecord(name, "TXT", domain)
 	if err != nil {
