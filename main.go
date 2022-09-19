@@ -149,6 +149,7 @@ func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeReques
 // This is in order to facilitate multiple DNS validations for the same domain
 // concurrently.
 func (c *njallaDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
+	klog.Info("Cleaning up challenge")
 	cfg, err := loadConfig(ch.Config)
 	if err != nil {
 		return err
@@ -166,7 +167,7 @@ func (c *njallaDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 		return err
 	}
 
-	record, err := client.GetRecord(name, "TXT", domain)
+	record, err := client.GetRecordWithKey(name, "TXT", domain, ch.Key)
 	if err != nil {
 		return fmt.Errorf("unable to check TXT record: %v", err)
 	}
@@ -175,6 +176,8 @@ func (c *njallaDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 		if err = client.RemoveRecord(record.ID, domain); err != nil {
 			return fmt.Errorf("unable to remove TXT record: %v", err)
 		}
+	} else {
+		klog.Warning("Could not find record for challenge to clean up")
 	}
 
 	return nil

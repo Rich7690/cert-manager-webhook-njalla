@@ -122,6 +122,21 @@ func (c *Client) GetRecord(name string, recordType string, domain string) (*Reco
 	return nil, nil
 }
 
+func (c *Client) GetRecordWithKey(name string, recordType string, domain string, key string) (*Record, error) {
+	records, err := c.ListRecords(domain)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, record := range records {
+		if record.Name == name && record.Type == recordType && record.Content == key {
+			return &record, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func (c *Client) do(data APIRequest) (json.RawMessage, error) {
 	req, err := c.createRequest(data)
 	if err != nil {
