@@ -134,6 +134,7 @@ func (c *njallaDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeReques
 
 	entry := strings.TrimSuffix(ch.ResolvedFQDN, ".")
 	entry = strings.TrimSuffix(entry, domain)
+	entry = strings.TrimSuffix(entry, ".")
 	return entry, domain
 }
 
